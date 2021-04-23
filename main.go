@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"mime"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -179,6 +180,19 @@ func getRecordingOTR(c *gin.Context) {
 	c.Data(http.StatusOK, "text/json", bytes)
 }
 
+func deleteRecording(c *gin.Context) {
+	recording, utterances := getRecording(c)
+
+	recordingFilename := helper.RecordingFilename(recording.ID)
+	os.Remove(recordingFilename)
+	os.Remove(recordingFilename + ".txt")
+
+	db.Unscoped().Delete(utterances)
+	db.Unscoped().Delete(recording)
+
+	c.Redirect(http.StatusTemporaryRedirect, "/")
+}
+
 func uploadRecording(c *gin.Context) {
 	// Obtain the POSTed title and language values
 	title := c.PostForm("title")
@@ -222,6 +236,12 @@ func showLoginPage(c *gin.Context) {
 	render(c, gin.H{
 		"title": "Login",
 	}, "login.html")
+}
+
+func showDPSPage(c *gin.Context) {
+	render(c, gin.H{
+		"title": "Data protection statement",
+	}, "dps.html")
 }
 
 func hashPassword(password string) (string, error) {
@@ -498,6 +518,9 @@ func initializeRoutes(app *gin.Engine) {
 	// Handle the index route
 	app.GET("/", showIndexPage)
 
+	// Handle the Data protection statement
+	app.GET("/dps", showDPSPage)
+
 	// Group user related routes together
 	userRoutes := app.Group("/u")
 	{
@@ -553,6 +576,9 @@ func initializeRoutes(app *gin.Engine) {
 
 		// Handle GET requests at /recording/export/otr/some_recording_id
 		recordingRoutes.GET("/export/otr/:recording_id", ensureLoggedIn(), getRecordingOTR)
+
+		// Handle GET requests at /recording/delete/some_recording_id
+		recordingRoutes.GET("/delete/:recording_id", ensureLoggedIn(), deleteRecording)
 	}
 }
 
